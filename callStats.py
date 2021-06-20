@@ -1,4 +1,5 @@
 import discord
+from discord.embeds import Embed
 from discord.ext import commands
 from discord.ext.commands import Bot
 from textwrap import dedent
@@ -39,33 +40,30 @@ class RecordingCog(commands.Cog):
         self.bot = bot
         self.voiceChannel = voiceChannel
 
-    @commands.command(name="stop")
+    @commands.command(name="stop", brief="Stops any active recordings")
     async def stop_command(self, ctx):
         await ctx.send("Stopped recording on channel: %s." % str(self.voiceChannel))
         # Removes the cog for recording commands
         self.bot.remove_cog("RecordingCog")
 
-    @commands.command(name="check")
+    @commands.command(name="check", brief="Reports the status of an active recording")
     async def system_check_command(self, ctx):
         await ctx.send("This does nothing yet")
 
 
-@bot.command(  # Simple response commmand
-    name="hello", aliases=["hi", "hullo", "hey"], brief="Greet the bot!"
-)
-async def greet_back_command(ctx):
-    await ctx.send(f"Howdy {ctx.author.display_name}!")
-
-
-@bot.command(name="start")  # Starts recording the channel stats
+# Starts recording the channel stats
+@bot.command(name="start", brief="Starts recording on specified channel")
 async def start_command(ctx, voiceChannel: ChannelConverter()):
     # Enables the cog for commands used when recording stats
     cogCheck = bot.get_cog('RecordingCog')
+
+    # Check if there already is a recording
     if cogCheck is not None:
         await ctx.send("There is already a recording in process")
     else:
+        # If there is no recording, add the RecordingCog and send a message
         bot.add_cog(RecordingCog(bot, voiceChannel))
-        await ctx.send("Started recording on channel: %s." % str(voiceChannel))
+        await ctx.send(f"Howdy {str(voiceChannel)}!")
 
 
 @start_command.error  # Error message for failed start command
@@ -73,11 +71,15 @@ async def start_error(ctx, error):
     # Unwrapping the error cause because of how discord.py raises some of them
     error = error.__cause__ or error
     if isinstance(error, ValueError):
+        # Tell the user that the channel they specified was non-existant
         await ctx.send("That channel does not exist. (Remember to be case sensitive)")
     elif isinstance(error, MissingRequiredArgument):
+        # Tell the user they need a channel name argument
         await ctx.send("Missing a name for the target channel")
     else:
+        # Final case where the error is not covered by this handler
         await ctx.send("Something went wrong.")
+        raise error
 
 
 @bot.listen("on_command_error")
@@ -87,8 +89,10 @@ async def warn_on_command_cooldown(ctx, error):
 
     if isinstance(error, commands.CommandNotFound):
         if ctx.invoked_with == "stop":
+            # Tell the user that there is no active recording
             await ctx.send("There is no current recording active")
         else:
+            # Direct the user to use the help command if they try a bad command
             await ctx.send("It seems that command doesnt exist, try cs-help")
 
 # Never forget to leave this on the bottom of your code
