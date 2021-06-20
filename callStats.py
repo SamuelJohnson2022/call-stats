@@ -13,6 +13,7 @@ with open("token.txt") as fp:
 
 # Creates the bot with prefix cs-
 bot = Bot(command_prefix="cs-")
+bot.help_command.show_hidden = True
 
 
 class ChannelConverter(commands.Converter):
@@ -63,7 +64,7 @@ async def start_command(ctx, voiceChannel: ChannelConverter()):
     else:
         # If there is no recording, add the RecordingCog and send a message
         bot.add_cog(RecordingCog(bot, voiceChannel))
-        await ctx.send(f"Howdy {str(voiceChannel)}!")
+        await ctx.send(f"Started recording on channel: {voiceChannel}!")
 
 
 @start_command.error  # Error message for failed start command
