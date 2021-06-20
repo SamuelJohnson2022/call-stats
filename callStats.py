@@ -4,7 +4,7 @@ from discord.ext.commands import Bot
 from textwrap import dedent
 
 # Just so our code doesn't look bad
-from discord.ext.commands.errors import ConversionError
+from discord.ext.commands.errors import ConversionError, MissingRequiredArgument
 
 # Reads the bot token from file
 with open("token.txt") as fp:
@@ -19,15 +19,15 @@ class ChannelConverter(commands.Converter):
 
     async def convert(self, ctx, argument):
         # check if channel exists
-        if argument not in str(ctx.guild.voice_channels):
-            # Raise a ValueError for a nonexistent channel
-            raise ValueError("Not an existing voice channel")
+        for channel in ctx.guild.voice_channels:  # Finds it in the channel list
+            if argument == channel.name:
+                argument = channel  # Set the argument to be a channel variable
+        if isinstance(argument, discord.VoiceChannel):  # See if the argument has been set
+            # Return the new channel object
+            return argument
         else:
-            for chan in ctx.guild.voice_channels:  # Finds it in the channel list
-                if argument == chan:
-                    argument = chan  # Set the argument to be a channel variable
-
-        return argument  # return the new channel object
+            # return the new channel object
+            raise ValueError("Not an existing voice channel")
 
 
 class RecordingCog(commands.Cog):
@@ -74,6 +74,8 @@ async def start_error(ctx, error):
     error = error.__cause__ or error
     if isinstance(error, ValueError):
         await ctx.send("That channel does not exist. (Remember to be case sensitive)")
+    elif isinstance(error, MissingRequiredArgument):
+        await ctx.send("Missing a name for the target channel")
     else:
         await ctx.send("Something went wrong.")
 
