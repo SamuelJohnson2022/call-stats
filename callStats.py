@@ -13,7 +13,6 @@ with open("token.txt") as fp:
 
 # Creates the bot with prefix cs-
 bot = Bot(command_prefix="cs-")
-bot.help_command.show_hidden = True
 
 
 class ChannelConverter(commands.Converter):
@@ -32,20 +31,23 @@ class ChannelConverter(commands.Converter):
             raise ValueError("Not an existing voice channel")
 
 
-class RecordingCog(commands.Cog):
+class RecordingCommands(commands.Cog):
     # Cog containing all commands used during recording for the bot after start
     # Intializes with the voiceChannel it started recording on
-    def __init__(self, bot, voiceChannel) -> None:
+    def __init__(self, bot) -> None:
         super().__init__()
         # Initialized with a reference to the bot and the voice channel the recording is on
         self.bot = bot
-        self.voiceChannel = voiceChannel
+        self.voiceChannel = None
 
     @commands.command(name="stop", brief="Stops any active recordings")
     async def stop_command(self, ctx):
-        await ctx.send("Stopped recording on channel: %s." % str(self.voiceChannel))
-        # Removes the cog for recording commands
-        self.bot.remove_cog("RecordingCog")
+        if self.voiceChannel == None:
+            await ctx.send("There is no active recording")
+        else:
+            await ctx.send("Stopped recording on channel: %s." % str(self.voiceChannel))
+            # Set the current voice channel to None
+            self.voiceChannel = None
 
     @commands.command(name="check", brief="Reports the status of an active recording")
     async def system_check_command(self, ctx):
@@ -55,15 +57,13 @@ class RecordingCog(commands.Cog):
 # Starts recording the channel stats
 @bot.command(name="start", brief="Starts recording on specified channel")
 async def start_command(ctx, voiceChannel: ChannelConverter()):
-    # Enables the cog for commands used when recording stats
-    cogCheck = bot.get_cog('RecordingCog')
-
+    cogCheck = bot.get_cog("RecordingCommands")
     # Check if there already is a recording
-    if cogCheck is not None:
+    if cogCheck.voiceChannel is not None:
         await ctx.send("There is already a recording in process")
     else:
         # If there is no recording, add the RecordingCog and send a message
-        bot.add_cog(RecordingCog(bot, voiceChannel))
+        cogCheck.voiceChannel = voiceChannel
         await ctx.send(f"Started recording on channel: {voiceChannel}!")
 
 
@@ -89,12 +89,11 @@ async def warn_on_command_cooldown(ctx, error):
     error = error.__cause__ or error
 
     if isinstance(error, commands.CommandNotFound):
-        if ctx.invoked_with == "stop":
-            # Tell the user that there is no active recording
-            await ctx.send("There is no current recording active")
-        else:
-            # Direct the user to use the help command if they try a bad command
-            await ctx.send("It seems that command doesnt exist, try cs-help")
+        # Direct the user to use the help command if they try a bad command
+        await ctx.send("It seems that command doesnt exist, try cs-help")
+
+# Add the recording commands cog to the bot
+bot.add_cog(RecordingCommands(bot))
 
 # Never forget to leave this on the bottom of your code
 # Anything after this line will only be executed once the bot logs out
