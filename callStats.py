@@ -77,7 +77,26 @@ class RecordingCommands(commands.Cog):
         if self.voiceChannel == None:  # Check for an active recording
             await ctx.send("There is no active recording")
         else:
-            await ctx.send("This does nothing yet")
+            # Make each of the users current in call "leave"
+            for memberID in self.voiceChannel.voice_states:
+                self.users[memberID].leaveTimes.append(time.time())
+
+            # Iterate through all of the users and track their data
+            for userID in self.users.keys():
+
+                # Variable used to keep track of total time in call
+                userTotal = 0
+                # Iterate through the join and leave times for the user, and add them up
+                for i in range(len(self.users[userID].joinTimes)):
+                    # Simple (leave - join) times to get total time in call
+                    userTotal += self.users[userID].leaveTimes[i] - \
+                        self.users[userID].joinTimes[i]
+
+                await ctx.send(f"{self.users[userID].user.name} participated for {userTotal} seconds")
+
+            # Remove all of the previous leave times that were added
+            for memberID in self.voiceChannel.voice_states:
+                self.users[memberID].leaveTimes.pop()
 
 
 class UserStats:  # Class used by a list in the recording cog that details user stats
