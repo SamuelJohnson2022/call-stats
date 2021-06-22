@@ -37,7 +37,7 @@ class RecordingCommands(commands.Cog):
         # Initialized with a reference to the bot and the voice channel set to None
         self.bot = bot
         self.voiceChannel = None
-        self.users = []
+        self.users = {}  # Dictionary to store user data with key being their discord ID
         self.ctx = None
 
     @commands.command(name="stop", brief="Stops any active recordings")
@@ -49,7 +49,7 @@ class RecordingCommands(commands.Cog):
             # Reset all of the variables
             self.voiceChannel = None
             self.textChannel = None
-            self.users = []
+            self.users = {}
 
     @commands.command(name="check", brief="Reports the status of an active recording")
     async def check_command(self, ctx):
@@ -82,12 +82,15 @@ async def start_command(ctx, voiceChannel: ChannelConverter()):
         activeCog.ctx = ctx
         # Add any currently connected users to user list
         for memberID in voiceChannel.voice_states:
-            activeCog.users.append(UserStats(ctx.guild.get_member(memberID)))
+            # This get_member function doesnt work if user is in the voice channel before starting the bot
+            activeCog.users[memberID] = UserStats(
+                ctx.guild.get_member(memberID))
+            activeCog.users[memberID].joinTimes.append(time.time())
 
         await ctx.send(f"Started recording on channel: {voiceChannel}!")
 
 
-@bot.listen("on_voice_state_update")  # Listener for voice activity
+@ bot.listen("on_voice_state_update")  # Listener for voice activity
 # Member is type discord.Member and before and after are type discord.VoiceState
 async def call_activity(member, before, after):
     # First we check if its on the actively recorded channel
@@ -97,29 +100,40 @@ async def call_activity(member, before, after):
     if activeCog.voiceChannel == None:
         return
 
-    # Define a new UserStats object to be used in the conditionals
-    newUser = UserStats(member)
-
     # Check if it's the recorded channel when joining
     if after.channel == activeCog.voiceChannel and before.channel != activeCog.voiceChannel:
 
         # Check if the user is already in the list of users
-        if newUser in activeCog.users:
-            await activeCog.ctx.send("A prior Member joins")
+        if member.id in activeCog.users:
+            # Append their time to the joinTimes list for that user
+            activeCog.users[member.id].joinTimes.append(time.time())
+            # Temp debug output
+            await activeCog.ctx.send(f"{activeCog.users[member.id].user.name} joins: {activeCog.users[member.id].joinTimes[-1]}")
         else:  # In case it is a new user
-            await activeCog.ctx.send("A new Member joins")
-            activeCog.users.append(newUser)
+            # Add them to the users dictionary
+            activeCog.users[member.id] = UserStats(member)
+            # Append their time to the joinTimes list for that user
+            activeCog.users[member.id].joinTimes.append(time.time())
+            # Temp debug output
+            await activeCog.ctx.send(f"{activeCog.users[member.id].user.name} joins: {activeCog.users[member.id].joinTimes[-1]}")
+
     # Check if it's the recorded channel when leaving
     elif before.channel == activeCog.voiceChannel and after.channel != activeCog.voiceChannel:
-        if newUser in activeCog.users:  # This should always be the case
-            await activeCog.ctx.send("A prior Member leaves")
+        if member.id in activeCog.users:  # This should always be the case
+            if activeCog.users[member.id].user == None:
+                # If the startup fails to find the member object, we can fill in here
+                activeCog.users[member.id].user = member
+            # Append their time to the leaveTimes list for that user
+            activeCog.users[member.id].leaveTimes.append(time.time())
+            # Temp debug output
+            await activeCog.ctx.send(f"{activeCog.users[member.id].user.name} leaves: {activeCog.users[member.id].leaveTimes[-1]}")
         else:  # If somehow a user snuck in without being notices this will occur
             await activeCog.ctx.send("Something went wrong")
 
     # Otherwise this is not the right channel and we ignore
 
 
-@start_command.error  # Error message for failed start command
+@ start_command.error  # Error message for failed start command
 async def start_error(ctx, error):
     # Unwrapping the error cause because of how discord.py raises some of them
     error = error.__cause__ or error
@@ -135,7 +149,7 @@ async def start_error(ctx, error):
         raise error
 
 
-@bot.listen("on_command_error")  # Error message if user tries bad command
+@ bot.listen("on_command_error")  # Error message if user tries bad command
 async def warn_on_command_error(ctx, error):
     # Unwrapping the error cause because of how discord.py raises some of them
     error = error.__cause__ or error
