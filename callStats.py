@@ -1,3 +1,6 @@
+# Author: Samuel Johnson
+# Date: June 2021
+
 # Imports
 import discord
 from discord.embeds import Embed
@@ -46,7 +49,25 @@ class RecordingCommands(commands.Cog):
             await ctx.send("There is no active recording")
         else:
             await ctx.send(f"Stopped recording on channel: {self.voiceChannel}")
-            # Reset all of the variables
+
+            # Make each of the users current in call "leave"
+            for memberID in self.voiceChannel.voice_states:
+                self.users[memberID].leaveTimes.append(time.time())
+
+            # Iterate through all of the users and track their data
+            for userID in self.users.keys():
+
+                # Variable used to keep track of total time in call
+                userTotal = 0
+                # Iterate through the join and leave times for the user, and add them up
+                for i in range(len(self.users[userID].joinTimes)):
+                    # Simple (leave - join) times to get total time in call
+                    userTotal += self.users[userID].leaveTimes[i] - \
+                        self.users[userID].joinTimes[i]
+
+                await ctx.send(f"{self.users[userID].user.name} participated for {userTotal} seconds")
+
+            # Reset all of the variables for the cog
             self.voiceChannel = None
             self.textChannel = None
             self.users = {}
@@ -107,6 +128,12 @@ async def call_activity(member, before, after):
         if member.id in activeCog.users:
             # Append their time to the joinTimes list for that user
             activeCog.users[member.id].joinTimes.append(time.time())
+
+            # Prevent spam joining and leaving, must be at least [1 min] between last join/leave
+            if activeCog.users[member.id].joinTimes[-1] - activeCog.users[member.id].leaveTimes[-1] < 60:
+                activeCog.users[member.id].joinTimes.pop()
+                activeCog.users[member.id].leaveTimes.pop()
+
             # Temp debug output
             await activeCog.ctx.send(f"{activeCog.users[member.id].user.name} joins: {activeCog.users[member.id].joinTimes[-1]}")
         else:  # In case it is a new user
@@ -126,7 +153,7 @@ async def call_activity(member, before, after):
             # Append their time to the leaveTimes list for that user
             activeCog.users[member.id].leaveTimes.append(time.time())
             # Temp debug output
-            await activeCog.ctx.send(f"{activeCog.users[member.id].user.name} leaves: {activeCog.users[member.id].leaveTimes[-1]}")
+            await activeCog.ctx.send(f"{activeCog.users[member.id].user.name} leaves: {time.ctime(activeCog.users[member.id].leaveTimes[-1])}")
         else:  # If somehow a user snuck in without being notices this will occur
             await activeCog.ctx.send("Something went wrong")
 
