@@ -2,7 +2,7 @@
 # Date: June 2021
 
 # Imports
-from os import stat
+import os
 import discord
 from discord.embeds import Embed
 from discord.ext import commands
@@ -75,7 +75,19 @@ class RecordingCommands(commands.Cog):
 
                 await ctx.send(f"{self.users[userID].user.name} participated for {userTotal} seconds")
 
+            # Create the plotly chart and save it as ./images/temp.png
             createChart(self.users)
+
+            embed = Embed()
+            embed.title = "Here's a quick summary of the call"
+            # an image in the same folder as the main bot file
+            file = discord.File("images/temp.png")
+            embed.set_image(url="attachment://images/temp.png")
+            # filename and extension have to match (ex. "thisname.jpg" has to be "attachment://thisname.jpg")
+            await ctx.send(embed=embed, file=file)
+
+            # Get rid of the temp file after sending the message
+            os.remove("images/temp.png")
 
             # Reset all of the variables for the cog
             self.voiceChannel = None
@@ -140,11 +152,17 @@ def createChart(users: dict):
 
             dictList.append(statsDict)
 
+    # Create hte data frame used by plotly
     df = pd.DataFrame([data for data in dictList])
 
+    # Create the actual gantt chart
     fig = px.timeline(df, x_start="Start", x_end="Finish",
                       y="User", color="User")
     fig.show()
+
+    # Export the image to a temp.png file
+    fig.write_image("images/temp.png")
+    fig.to_image(format="png", engine="kaleido")
     return
 
 
