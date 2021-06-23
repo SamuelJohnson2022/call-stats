@@ -2,12 +2,16 @@
 # Date: June 2021
 
 # Imports
+from os import stat
 import discord
 from discord.embeds import Embed
 from discord.ext import commands
 from discord.ext.commands import Bot
 from discord.ext.commands.errors import ConversionError, MissingRequiredArgument
 import time
+import datetime
+import plotly.express as px
+import pandas as pd
 
 # Reads the bot token from file
 with open("token.txt") as fp:
@@ -67,6 +71,8 @@ class RecordingCommands(commands.Cog):
 
                 await ctx.send(f"{self.users[userID].user.name} participated for {userTotal} seconds")
 
+            createChart(self.users)
+
             # Reset all of the variables for the cog
             self.voiceChannel = None
             self.textChannel = None
@@ -109,6 +115,33 @@ class UserStats:  # Class used by a list in the recording cog that details user 
         return self.user.id == o.user.id
 
 
+def createChart(users: dict):
+    # Takes a user's join and leave times and returns a graph using plotly
+
+    dictList = []
+
+    # Iterate through all of the users
+    for key in users:
+        # Iterate through each of the time frames (join -> leave)
+        for i in range(len(users[key].joinTimes)):
+            # Create a dict usable by plotly
+            statsDict = dict()
+            statsDict["Task"] = users[key].user.name + str(i)
+            # Format the timestamps to work with plotly
+            statsDict["Start"] = datetime.datetime.fromtimestamp(users[key].joinTimes[i]).strftime('%Y-%m-%d %H:%M:%S')
+            statsDict["Finish"] = datetime.datetime.fromtimestamp(users[key].leaveTimes[i]).strftime('%Y-%m-%d %H:%M:%S')
+            statsDict["User"] = users[key].user.name
+
+            dictList.append(statsDict)
+
+    df = pd.DataFrame([data for data in dictList])
+
+    fig = px.timeline(df, x_start="Start", x_end="Finish",
+                      y="User", color="User")
+    fig.show()
+    return
+
+
 @bot.command(name="start", brief="Starts recording on specified channel")
 async def start_command(ctx, voiceChannel: ChannelConverter()):
     # Starts recording the channel stats
@@ -125,6 +158,11 @@ async def start_command(ctx, voiceChannel: ChannelConverter()):
             # This get_member function doesnt work if user is in the voice channel before starting the bot
             activeCog.users[memberID] = UserStats(
                 ctx.guild.get_member(memberID))
+
+            # This happens when user is in call before bot is started
+            if activeCog.users[memberID].user == None:
+                await ctx.send("Something went wrong")
+
             activeCog.users[memberID].joinTimes.append(time.time())
 
         await ctx.send(f"Started recording on channel: {voiceChannel}!")
