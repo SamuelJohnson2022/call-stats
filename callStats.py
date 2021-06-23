@@ -146,7 +146,7 @@ def createChart(users: dict):
     # Takes a user's join and leave times and returns a graph using plotly
 
     dictList = []
-    colorList = []
+    colorDict = dict()
     # Iterate through all of the users
     for key in users:
 
@@ -157,8 +157,8 @@ def createChart(users: dict):
         # If the user doesnt have an avatar, find the color of their default avatar
         if users[key].user.avatar == None:
             colorKey = int(users[key].user.discriminator) % 5
-            colorDict = ['#7289da', '#747f8d', '#43b581', '#faa61a', '#f04747']
-            colorList.append(colorDict[colorKey])
+            colorList = ['#7289da', '#747f8d', '#43b581', '#faa61a', '#f04747']
+            colorDict[users[key].user.name] = colorList[colorKey]
 
         # Otherwise, find the dominant color of the user avatar
         else:
@@ -183,7 +183,7 @@ def createChart(users: dict):
                 peak = codes[index_max]
                 colour = binascii.hexlify(bytearray(int(c)
                                                     for c in peak)).decode('ascii')
-                colorList.append("#" + str(colour))
+                colorDict[users[key].user.name] = ("#" + str(colour))
 
         # Iterate through each of the time frames (join -> leave)
         for i in range(len(users[key].joinTimes)):
@@ -204,11 +204,10 @@ def createChart(users: dict):
 
     # Create the actual gantt chart
     fig = px.timeline(df, x_start="Start", x_end="Finish",
-                      y="User", color="User")
+                      y="User", color="User", color_discrete_map=colorDict)
     # Styling Changes
     fig.update_layout(plot_bgcolor="rgb(54,57,62)",
                       paper_bgcolor="rgb(54,57,62)",
-                      colorway=colorList,
                       font=dict(color="#fff", size=20),
                       width=1000,
                       height=600)
