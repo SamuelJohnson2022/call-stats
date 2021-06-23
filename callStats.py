@@ -17,8 +17,12 @@ import pandas as pd
 with open("token.txt") as fp:
     TOKEN = fp.read().strip()
 
+# Declare intents, needs members intent for getting members in call before starting the bot
+intents = discord.Intents.default()
+intents.members = True
+
 # Creates the bot with prefix cs-
-bot = Bot(command_prefix="cs-")
+bot = Bot(command_prefix="cs-", intents=intents)
 
 
 class ChannelConverter(commands.Converter):
@@ -128,8 +132,10 @@ def createChart(users: dict):
             statsDict = dict()
             statsDict["Task"] = users[key].user.name + str(i)
             # Format the timestamps to work with plotly
-            statsDict["Start"] = datetime.datetime.fromtimestamp(users[key].joinTimes[i]).strftime('%Y-%m-%d %H:%M:%S')
-            statsDict["Finish"] = datetime.datetime.fromtimestamp(users[key].leaveTimes[i]).strftime('%Y-%m-%d %H:%M:%S')
+            statsDict["Start"] = datetime.datetime.fromtimestamp(
+                users[key].joinTimes[i]).strftime('%Y-%m-%d %H:%M:%S')
+            statsDict["Finish"] = datetime.datetime.fromtimestamp(
+                users[key].leaveTimes[i]).strftime('%Y-%m-%d %H:%M:%S')
             statsDict["User"] = users[key].user.name
 
             dictList.append(statsDict)
@@ -158,10 +164,6 @@ async def start_command(ctx, voiceChannel: ChannelConverter()):
             # This get_member function doesnt work if user is in the voice channel before starting the bot
             activeCog.users[memberID] = UserStats(
                 ctx.guild.get_member(memberID))
-
-            # This happens when user is in call before bot is started
-            if activeCog.users[memberID].user == None:
-                await ctx.send("Something went wrong")
 
             activeCog.users[memberID].joinTimes.append(time.time())
 
