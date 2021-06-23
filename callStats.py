@@ -3,6 +3,7 @@
 
 # Imports
 import os
+from _plotly_utils.basevalidators import ColorlistValidator
 import discord
 from discord.embeds import Embed
 from discord.ext import commands
@@ -12,6 +13,16 @@ import time
 import datetime
 import plotly.express as px
 import pandas as pd
+from PIL import Image
+from io import BytesIO
+import requests
+import numpy as np
+import scipy
+import scipy.misc
+import scipy.cluster
+import binascii
+import struct
+
 
 # Reads the bot token from file
 with open("token.txt") as fp:
@@ -135,9 +146,45 @@ def createChart(users: dict):
     # Takes a user's join and leave times and returns a graph using plotly
 
     dictList = []
-
+    colorList = []
     # Iterate through all of the users
     for key in users:
+
+        # Add their color to the color list
+        # Get the url of the user avatar
+        url = users[key].user.avatar_url
+
+        # If the user doesnt have an avatar, find the color of their default avatar
+        if users[key].user.avatar == None:
+            colorKey = int(users[key].user.discriminator) % 5
+            colorDict = ['#7289da', '#747f8d', '#43b581', '#faa61a', '#f04747']
+            colorList.append(colorDict[colorKey])
+
+        # Otherwise, find the dominant color of the user avatar
+        else:
+            response = requests.get(users[key].user.avatar_url)
+            # Find the dominant color of their avatar  using clusters
+            with Image.open(BytesIO(response.content)) as im:
+                im = im.resize((150, 150))      # optional, to reduce time
+                ar = np.asarray(im)
+                shape = ar.shape
+                ar = ar.reshape(scipy.product(
+                    shape[:2]), shape[2]).astype(float)
+
+                codes, dist = scipy.cluster.vq.kmeans(ar, 5)
+
+                vecs, dist = scipy.cluster.vq.vq(
+                    ar, codes)         # assign codes
+                counts, bins = np.histogram(
+                    vecs, len(codes))    # count occurrences
+
+                # find most frequent
+                index_max = np.argmax(counts)
+                peak = codes[index_max]
+                colour = binascii.hexlify(bytearray(int(c)
+                                                    for c in peak)).decode('ascii')
+                colorList.append("#" + str(colour))
+
         # Iterate through each of the time frames (join -> leave)
         for i in range(len(users[key].joinTimes)):
             # Create a dict usable by plotly
@@ -158,7 +205,13 @@ def createChart(users: dict):
     # Create the actual gantt chart
     fig = px.timeline(df, x_start="Start", x_end="Finish",
                       y="User", color="User")
-    fig.show()
+    # Styling Changes
+    fig.update_layout(plot_bgcolor="rgb(54,57,62)",
+                      paper_bgcolor="rgb(54,57,62)",
+                      colorway=colorList,
+                      font=dict(color="#fff", size=20),
+                      width=1000,
+                      height=600)
 
     # Export the image to a temp.png file
     fig.write_image("images/temp.png")
