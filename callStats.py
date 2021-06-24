@@ -3,7 +3,6 @@
 
 # Imports
 import os
-from _plotly_utils.basevalidators import ColorlistValidator
 import discord
 from discord.embeds import Embed
 from discord.ext import commands
@@ -21,7 +20,6 @@ import scipy
 import scipy.misc
 import scipy.cluster
 import binascii
-import struct
 
 
 # Reads the bot token from file
@@ -91,6 +89,7 @@ class RecordingCommands(commands.Cog):
 
             embed = Embed()
             embed.title = "Here's a quick summary of the call"
+
             # an image in the same folder as the main bot file
             file = discord.File("images/temp.png")
             embed.set_image(url="attachment://images/temp.png")
@@ -145,30 +144,40 @@ class UserStats:  # Class used by a list in the recording cog that details user 
 def createChart(users: dict):
     # Takes a user's join and leave times and returns a graph using plotly
 
+    # List used to store user dictionaries and color dict is used to store their colors
     dictList = []
+    urlDict = dict()
     colorDict = dict()
     # Iterate through all of the users
     for key in users:
 
         # Add their color to the color list
-        # Get the url of the user avatar
-        url = users[key].user.avatar_url
 
         # If the user doesnt have an avatar, find the color of their default avatar
         if users[key].user.avatar == None:
-            colorKey = int(users[key].user.discriminator) % 5
+            # Get the discriminator key
+            userKey = int(users[key].user.discriminator) % 5
+
+            response1 = requests.get(users[key].user.default_avatar_url)
+            # Plotly didnt like normal urls for the default avatars, so we open it with PIL
+            urlDict[users[key].user.name] = Image.open(
+                BytesIO(response1.content))
+
+            # Discord assigns these 5 colors as the default for each person using their discriminator (#1234)
             colorList = ['#7289da', '#747f8d', '#43b581', '#faa61a', '#f04747']
-            colorDict[users[key].user.name] = colorList[colorKey]
+            colorDict[users[key].user.name] = colorList[userKey]
 
         # Otherwise, find the dominant color of the user avatar
         else:
+            # Get the url of the user avatar
+            urlDict[users[key].user.name] = str(users[key].user.avatar_url)
             response = requests.get(users[key].user.avatar_url)
             # Find the dominant color of their avatar  using clusters
             with Image.open(BytesIO(response.content)) as im:
                 im = im.resize((150, 150))      # optional, to reduce time
                 ar = np.asarray(im)
                 shape = ar.shape
-                ar = ar.reshape(scipy.product(
+                ar = ar.reshape(np.product(
                     shape[:2]), shape[2]).astype(float)
 
                 codes, dist = scipy.cluster.vq.kmeans(ar, 5)
@@ -209,8 +218,29 @@ def createChart(users: dict):
     fig.update_layout(plot_bgcolor="rgb(54,57,62)",
                       paper_bgcolor="rgb(54,57,62)",
                       font=dict(color="#fff", size=20),
-                      width=1000,
-                      height=600)
+                      width=1500)
+    fig.update_yaxes(showticklabels=False, title=None)
+    fig.update_xaxes(tickformat="%-I:%M %p")
+
+    # Add the image axis markers
+    for key2 in urlDict:
+        # Add images
+        fig.add_layout_image(
+            dict(
+                source=urlDict[key2],
+                x=0,
+                y=key2
+            ))
+
+    # Update the figure with these images
+    fig.update_layout_images(dict(
+        xref="paper",
+        yref="y",
+        sizex=0.5,
+        sizey=0.5,
+        xanchor="center",
+        yanchor="middle"
+    ))
 
     # Export the image to a temp.png file
     fig.write_image("images/temp.png")
