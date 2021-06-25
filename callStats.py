@@ -163,7 +163,7 @@ class RecordingCommands(commands.Cog):
                 first in the call at {datetime.datetime.fromtimestamp(firstTime).strftime('%#I:%M %p')}.")
 
             # Find who joined and left the most
-            if len(topUser) > 1:
+            if len(activeUser) > 1:
                 embed.add_field(
                     name="Most Sporadic User",
                     value=f"{', '.join(activeUser)} had the most active times with {mostJoins}.")
