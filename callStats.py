@@ -93,6 +93,12 @@ class RecordingCommands(commands.Cog):
             for memberID in self.voiceChannel.voice_states:
                 self.users[memberID].leaveTimes.append(time.time())
 
+            # Keeps track of user stats across the recording
+            topUser = []
+            topTime = 0
+            activeUser = []
+            mostJoins = 0
+
             # Iterate through all of the users and track their data
             for userID in self.users.keys():
 
@@ -104,18 +110,72 @@ class RecordingCommands(commands.Cog):
                     userTotal += self.users[userID].leaveTimes[i] - \
                         self.users[userID].joinTimes[i]
 
-                await ctx.send(f"{self.users[userID].user.name} participated for {userTotal} seconds")
+                # Round the user total to the second to account for slight deviations
+                userTotal = round(userTotal)
+                # Check if this user's time is more than the current top
+                if userTotal > topTime:
+                    # Clear the previous list and add this user
+                    topTime = userTotal
+                    topUser.clear()
+                    topUser.append(self.users[userID].user.name)
+                elif userTotal == topTime:
+                    # Just add this user to the end of the top list
+                    topUser.append(self.users[userID].user.name)
+
+                # Find out who joined and left the most
+                userJoins = len(self.users[userID].joinTimes)
+                if userJoins > mostJoins:
+                    # Clear the previous list and add this user
+                    mostJoins = userJoins
+                    activeUser.clear()
+                    activeUser.append(self.users[userID].user.name)
+                elif userJoins == mostJoins:
+                    # Just add this user to the end of the top list
+                    activeUser.append(self.users[userID].user.name)
 
             # Create the plotly chart and save it as ./images/temp.png
             createChart(self.users)
 
+            # Create an embed for sending summary message
             embed = Embed()
-            embed.title = "Here's a quick summary of the call"
+            embed.title = "Here's a quick summary of the call:"
 
-            # an image in the same folder as the main bot file
+            # Check if there is a tie for the top user
+            if len(topUser) > 1:
+                embed.add_field(
+                    name="Longest Time in Call",
+                    value=f"{', '.join(topUser)} stayed in the call the longest with {topTime} seconds.")
+            else:  # With just one top user, just add in their name and time
+                embed.add_field(
+                    name="Longest Time in Call",
+                    value=f"{topUser[0]} stayed in the call the longest with {topTime} seconds.")
+
+            # See who the first user to join was
+            firstTime = round(list(self.users.values())[0].joinTimes[0])
+            # Long list comprehension that joins all users where they have a time equal to the first time
+            firstList = [user.user.name for user in list(
+                self.users.values()) if round(user.joinTimes[0]) == firstTime]
+
+            # Create the embed field for the first user
+            embed.add_field(
+                name="First User in Call",
+                value=f"{', '.join(firstList)} {'was' if len(firstList) == 1 else 'were'} \
+                first in the call at {datetime.datetime.fromtimestamp(firstTime).strftime('%#I:%M %p')}.")
+
+            # Find who joined and left the most
+            if len(topUser) > 1:
+                embed.add_field(
+                    name="Most Sporadic User",
+                    value=f"{', '.join(activeUser)} had the most active times with {mostJoins}.")
+            else:  # With just one top user, just add in their name and time
+                embed.add_field(
+                    name="Most Sporadic User",
+                    value=f"{activeUser[0]} had the most active times with {mostJoins}.")
+
+            # Find the chart image in the same folder as the main bot file
             file = discord.File("images/temp.png")
             embed.set_image(url="attachment://images/temp.png")
-            # filename and extension have to match (ex. "thisname.jpg" has to be "attachment://thisname.jpg")
+            # filename and extension have to match
             await ctx.send(embed=embed, file=file)
 
             # Get rid of the temp file after sending the message
@@ -146,7 +206,7 @@ class RecordingCommands(commands.Cog):
                     userTotal += self.users[userID].leaveTimes[i] - \
                         self.users[userID].joinTimes[i]
 
-                await ctx.send(f"{self.users[userID].user.name} participated for {userTotal} seconds")
+                await ctx.send(f"{self.users[userID].user.name} has participated for {round(userTotal)} seconds.")
 
             # Remove all of the previous leave times that were added
             for memberID in self.voiceChannel.voice_states:
@@ -302,8 +362,8 @@ async def call_activity(member, before, after):
             # Append their time to the joinTimes list for that user
             activeCog.users[member.id].joinTimes.append(time.time())
 
-            # Prevent spam joining and leaving, must be at least [1 min] between last join/leave
-            if activeCog.users[member.id].joinTimes[-1] - activeCog.users[member.id].leaveTimes[-1] < 60:
+            # Prevent spam joining and leaving, must be at least [30 s] between last join/leave
+            if activeCog.users[member.id].joinTimes[-1] - activeCog.users[member.id].leaveTimes[-1] < 30:
                 activeCog.users[member.id].joinTimes.pop()
                 activeCog.users[member.id].leaveTimes.pop()
 
