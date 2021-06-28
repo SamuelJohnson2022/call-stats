@@ -89,6 +89,14 @@ class RecordingCommands(commands.Cog):
         else:
             await ctx.send(f"Stopped recording on channel: **{self.voiceChannel}**")
 
+            if len(self.users) == 0:
+                await ctx.send("There was no activity during the recording period.")
+                # Reset all of the variables for the cog
+                self.voiceChannel = None
+                self.textChannel = None
+                self.users = {}
+                return
+
             # Make each of the users current in call "leave"
             for memberID in self.voiceChannel.voice_states:
                 self.users[memberID].leaveTimes.append(time.time())
@@ -144,11 +152,13 @@ class RecordingCommands(commands.Cog):
             if len(topUser) > 1:
                 embed.add_field(
                     name="Longest Time in Call",
-                    value=f"{', '.join(topUser)} stayed in the call the longest with {topTime} seconds.")
+                    value=f"{', '.join(topUser)} stayed in the call the longest with \
+                        {str(topTime) + ' seconds' if topTime < 120 else str(round(topTime/60)) + ' minutes'}.")
             else:  # With just one top user, just add in their name and time
                 embed.add_field(
                     name="Longest Time in Call",
-                    value=f"{topUser[0]} stayed in the call the longest with {topTime} seconds.")
+                    value=f"{topUser[0]} stayed in the call the longest with \
+                        {str(topTime) + ' seconds' if topTime < 120 else str(round(topTime/60)) + ' minutes'}.")
 
             # See who the first user to join was
             firstTime = round(list(self.users.values())[0].joinTimes[0])
@@ -191,6 +201,9 @@ class RecordingCommands(commands.Cog):
         if self.voiceChannel == None:  # Check for an active recording
             await ctx.send("There is no active recording")
         else:
+            if len(self.users) == 0:
+                await ctx.send("There was no activity during the recording period so far.")
+                return
             # Make each of the users current in call "leave"
             for memberID in self.voiceChannel.voice_states:
                 self.users[memberID].leaveTimes.append(time.time())
